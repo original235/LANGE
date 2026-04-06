@@ -19,9 +19,11 @@ class DataReviewer:
             data_path: str,
             output_path: str,
             seed: bool, # review seed data or not
+            api_num_worker: int = 4,
         ) -> None:
         self.model_name = model_name
         self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.api_num_worker = api_num_worker
         
         ## 2.read data
         with open(data_path, 'r', encoding='utf-8') as json_file:
@@ -87,39 +89,45 @@ class DataReviewer:
         with open(self.output_path, 'w', encoding='utf-8') as outfile:
             json.dump(self.origin_data[:idx+1], outfile, indent=4, ensure_ascii=False)
     
-    def __call__(self) -> None:
-        if self.seed:
-            for idx, data in enumerate(tqdm(self.origin_data)):
-                if self.skip_len > 0:
-                    self.skip_len -= 1
-                    continue
-                prompt = self.pt.format(prompt=data['prompt'], response=data['response'])
+    def process_seed_item(self, data):
+        prompt = self.pt.format(prompt=data['prompt'], response=data['response'])
+        review_batch = self.sample(prompt=prompt)
+        avg_score = self.extract_score(review_batch)
+        data['review'] = review_batch
+        data['score'] = avg_score
+        return data
+
+    def process_new_item(self, data):
+        pro_review = []
+        pro_score = []
+        for i in range(len(data['new_prompt'])):
+            res_review = []
+            res_score = []
+            for j in range(len(data['new_response'][i])):
+                prompt = self.pt.format(prompt=data['new_prompt'][i], response=data['new_response'][i][j])
                 review_batch = self.sample(prompt=prompt)
                 avg_score = self.extract_score(review_batch)
-                data['review'] = review_batch
-                data['score'] = avg_score
-                if idx % 10 == 0:
-                    self.save(idx)
-        else:
-            for idx, data in enumerate(tqdm(self.origin_data)):
-                if self.skip_len > 0:
-                    self.skip_len -= 1
-                    continue
-                pro_review = []
-                pro_score = []
-                for i in range(len(data['new_prompt'])):
-                    res_review = []
-                    res_score = []
-                    for j in range(len(data['new_response'][i])):
-                        prompt = self.pt.format(prompt=data['new_prompt'][i], response=data['new_response'][i][j])
-                        review_batch = self.sample(prompt=prompt)
-                        avg_score = self.extract_score(review_batch)
-                        res_review.append(review_batch)
-                        res_score.append(avg_score)
-                    pro_review.append(res_review)
-                    pro_score.append(res_score)
-                data['new_review'] = pro_review
-                data['new_score'] = pro_score
-                if idx % 5 == 0:
-                    self.save(idx)
-        self.save(len(self.origin_data))
+                res_review.append(review_batch)
+                res_score.append(avg_score)
+            pro_review.append(res_review)
+            pro_score.append(res_score)
+        data['new_review'] = pro_review
+        data['new_score'] = pro_score
+        return data
+    
+    def __call__(self) -> None:
+        import concurrent.futures
+        items_to_process = self.origin_data[self.skip_len:]
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.api_num_worker) as executor:
+            if self.seed:
+                results = executor.map(self.process_seed_item, items_to_process)
+            else:
+                results = executor.map(self.process_new_item, items_to_process)
+                
+            for i, processed_data in enumerate(tqdm(results, total=len(items_to_process))):
+                self.origin_data[self.skip_len + i] = processed_data
+                if i % 10 == 0:
+                    self.save(self.skip_len + i)
+                    
+        self.save(len(self.origin_data) - 1)

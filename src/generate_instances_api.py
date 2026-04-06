@@ -19,9 +19,11 @@ class DataSource:
             data_path: str,
             output_path: str,
             threshold: float=7.0,
+            api_num_worker: int = 4,
         ) -> None:
         self.model_name = model_name
         self.client = OpenAI(api_key=api_key, base_url=base_url)
+        self.api_num_worker = api_num_worker
         
         ## 2.read data
         with open(data_path, 'r', encoding='utf-8') as json_file:
@@ -79,67 +81,63 @@ class DataSource:
         with open(self.output_path, 'w', encoding='utf-8') as outfile:
             json.dump(self.origin_data[:idx+1], outfile, indent=4, ensure_ascii=False)
     
+    def process_item(self, data, ablation):
+        if ablation is None:
+            if data['score'] > self.threshold:
+                pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4ResNShot)
+                prompt = pt.format(instruction=data['prompt'], response=data['response'])
+                res_batch = self.sample(prompt=prompt)
+                self.final_answer(res_batch)
+                data['new_prompt'] = [data['prompt']]
+                data['new_response'] = [res_batch]
+            else:
+                pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4NewInstructionNShot)
+                prompt = pt.format(instruction=data['prompt'], response=data['response'])
+                pro_batch = self.sample(prompt=prompt)
+                self.final_answer(pro_batch)
+                data['new_prompt'] = pro_batch
+                new_res = []
+                for pro in pro_batch:
+                    res_batch = self.sample(prompt=pro)
+                    new_res.append(res_batch)
+                data['new_response'] = new_res
+        elif ablation == "sft":
+            if data['score'] <= self.threshold:
+                pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4NewInstructionNShot)
+                prompt = pt.format(instruction=data['prompt'], response=data['response'])
+                pro_batch = self.sample(prompt=prompt)
+                self.final_answer(pro_batch)
+                data['new_prompt'] = pro_batch
+                new_res = []
+                for pro in pro_batch:
+                    res_batch = self.sample(prompt=pro)
+                    new_res.append(res_batch)
+                data['new_response'] = new_res
+        elif ablation == "dpo":
+            if data['score'] > self.threshold:
+                pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4ResNShot)
+                prompt = pt.format(instruction=data['prompt'], response=data['response'])
+                res_batch = self.sample(prompt=prompt)
+                self.final_answer(res_batch)
+                data['new_prompt'] = [data['prompt']]
+                data['new_response'] = [res_batch]
+        else:
+            raise ValueError(f"Unknown ablation mode: {ablation}")
+        return data
+
     def __call__(
         self, 
         ablation: str=None  # Is it ablation? "sft", "dpo" or None
     ):
-        if ablation is None:
-            for idx, data in enumerate(tqdm(self.origin_data)):
-                if self.skip_len > 0:
-                    self.skip_len -= 1
-                    continue
-                if data['score'] > self.threshold:
-                    pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4ResNShot)
-                    prompt = pt.format(instruction=data['prompt'], response=data['response'])
-                    res_batch = self.sample(prompt=prompt)
-                    self.final_answer(res_batch)
-                    data['new_prompt'] = [data['prompt']]
-                    data['new_response'] = [res_batch]
-                else:
-                    pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4NewInstructionNShot)
-                    prompt = pt.format(instruction=data['prompt'], response=data['response'])
-                    pro_batch = self.sample(prompt=prompt)
-                    self.final_answer(pro_batch)
-                    data['new_prompt'] = pro_batch
-                    new_res = []
-                    for pro in pro_batch:
-                        res_batch = self.sample(prompt=pro)
-                        new_res.append(res_batch)
-                    data['new_response'] = new_res
-                if idx % 10 == 0:
-                    self.save(idx)
-        elif ablation == "sft":
-            for idx, data in enumerate(tqdm(self.origin_data)):
-                if self.skip_len > 0:
-                    self.skip_len -= 1
-                    continue
-                if data['score'] <= self.threshold:
-                    pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4NewInstructionNShot)
-                    prompt = pt.format(instruction=data['prompt'], response=data['response'])
-                    pro_batch = self.sample(prompt=prompt)
-                    self.final_answer(pro_batch)
-                    data['new_prompt'] = pro_batch
-                    new_res = []
-                    for pro in pro_batch:
-                        res_batch = self.sample(prompt=pro)
-                        new_res.append(res_batch)
-                    data['new_response'] = new_res
-                if idx % 10 == 0:
-                    self.save(idx)
-        elif ablation == "dpo":
-            for idx, data in enumerate(tqdm(self.origin_data)):
-                if self.skip_len > 0:
-                    self.skip_len -= 1
-                    continue
-                if data['score'] > self.threshold:
-                    pt = PromptTemplate.from_template(template=prompt_template.LANGGPT4ResNShot)
-                    prompt = pt.format(instruction=data['prompt'], response=data['response'])
-                    res_batch = self.sample(prompt=prompt)
-                    self.final_answer(res_batch)
-                    data['new_prompt'] = [data['prompt']]
-                    data['new_response'] = [res_batch]
-                if idx % 10 == 0:
-                    self.save(idx)
-        else:
-            raise ValueError(f"Unknown ablation mode: {ablation}")
-        self.save(len(self.origin_data))
+        import concurrent.futures
+        items_to_process = self.origin_data[self.skip_len:]
+        
+        with concurrent.futures.ThreadPoolExecutor(max_workers=self.api_num_worker) as executor:
+            results = executor.map(lambda d: self.process_item(d, ablation), items_to_process)
+            
+            for i, processed_data in enumerate(tqdm(results, total=len(items_to_process))):
+                self.origin_data[self.skip_len + i] = processed_data
+                if i % 10 == 0:
+                    self.save(self.skip_len + i)
+                    
+        self.save(len(self.origin_data) - 1)

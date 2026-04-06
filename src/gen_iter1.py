@@ -78,7 +78,8 @@ if __name__ == '__main__':
             base_url=args.url,
             data_path=args.seed_path,
             output_path=args.review_path,
-            seed=True
+            seed=True,
+            api_num_worker=args.api_num_worker
         )
     else:
         reviewer = DataReviewer(
@@ -98,7 +99,8 @@ if __name__ == '__main__':
             base_url=args.url,
             data_path=args.review_path,
             output_path=args.new_instances_path,
-            threshold=args.threshold
+            threshold=args.threshold,
+            api_num_worker=args.api_num_worker
         )
     else:
         gener = DataSource(
@@ -124,7 +126,8 @@ if __name__ == '__main__':
             base_url=args.url,
             data_path=args.filtered_path,
             output_path=args.new_review_path,
-            seed=False
+            seed=False,
+            api_num_worker=args.api_num_worker
         )
     else:
         reviewer = DataReviewer(
