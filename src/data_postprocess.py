@@ -18,9 +18,9 @@ class DataPostprocess:
         self.data_path = data_path
         self.ablation = ablation
         self.threshold = threshold
-        self.sft_output_path = os.path.join(data_path.split('.')[0], 'sft_output.json')
-        self.dpo_output_path = os.path.join(data_path.split('.')[0], 'dpo_output.json')
-        self.next_seed_path = os.path.join(data_path.split('.')[0], 'seed.json')
+        self.sft_output_path = data_path.split('.')[0]+'sft_output.json'
+        self.dpo_output_path = data_path.split('.')[0]+'dpo_output.json'
+        self.next_seed_path = data_path.split('.')[0]+'seed.json'
 
 
         with open(self.data_path, 'r', encoding='utf-8') as json_file:
@@ -40,8 +40,8 @@ class DataPostprocess:
         new_data = []
         for data in tqdm(self.data, desc="SFT Postprocessing"):
             if(data['score'] <= self.threshold):
-                for new_prompt,idx in enumerate(data['new_prompt']):
-                    for new_response,rid in enumerate(data['new_response'][idx]):
+                for idx, new_prompt in enumerate(data['new_prompt']):
+                    for rid, new_response in enumerate(data['new_response']):
                         for signal_response in new_response:
                             data_item = {
                                 'prompt': new_prompt,
@@ -57,7 +57,7 @@ class DataPostprocess:
         new_data = []
         for data in tqdm(self.data, desc="DPO Postprocessing"):
             if(data['score'] > self.threshold):
-                for new_response,idx in enumerate(data['new_response'][0]):
+                for idx,new_response in enumerate(data['new_response']):
                     for signal_response in new_response:
                         data_item = {
                             'prompt': data['prompt'],
@@ -77,8 +77,8 @@ class DataPostprocess:
         dpo_new_data = []
         for data in tqdm(self.data, desc="All Postprocessing"):
             if(data['score'] <= self.threshold):
-                for new_prompt,idx in enumerate(data['new_prompt']):
-                    for new_response,rid in enumerate(data['new_response'][idx]):
+                for idx,new_prompt in enumerate(data['new_prompt']):
+                    for rid,new_response in enumerate(data['new_response']):
                         for signal_response in new_response:
                             data_item = {
                                 'prompt': new_prompt,
@@ -88,7 +88,7 @@ class DataPostprocess:
                             }
                             sft_new_data.append(data_item)
             elif(data['score'] > self.threshold):
-                for new_response,idx in enumerate(data['new_response'][0]):
+                for idx,new_response in enumerate(data['new_response']):
                     for signal_response in new_response:
                         data_item = {
                             'prompt': data['prompt'],
@@ -109,7 +109,7 @@ class DataPostprocess:
 
 if __name__ == "__main__":
     data_postprocess = DataPostprocess(
-        data_path="dataset/data_first/review/review_iter1.json",
+        data_path="dataset/dataset_first/review/review_iter1.json",
         ablation=None,
         threshold=7.0
     )
