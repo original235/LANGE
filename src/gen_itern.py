@@ -1,5 +1,6 @@
 import os
 import argparse
+from data_postprocess import DataPostprocess
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Data processing pipeline')
@@ -41,9 +42,9 @@ def parse_args():
     # LLM config
     parser.add_argument('--apikey', type=str, default='',
                         help='apikey for LLM config (required for api mode)')
-    parser.add_argument('--url', type=str, default='',
+    parser.add_argument('--url', type=str, default='https://coding.dashscope.aliyuncs.com/v1',
                         help='url for LLM config (required for api mode)')
-    parser.add_argument('--modelname', type=str, default='',
+    parser.add_argument('--modelname', type=str, default='qwen3.5-plus',
                         help='modelname for LLM config (required for api mode)')
     parser.add_argument('--api_num_worker', type=int, default=4,
                         help='Number of concurrent API workers for api mode')

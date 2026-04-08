@@ -1,5 +1,7 @@
 import os
 import argparse
+from data_postprocess import DataPostprocess
+
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Data processing pipeline')
