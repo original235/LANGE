@@ -120,3 +120,10 @@ if __name__ == '__main__':
             seed=False
         )
     reviewer()
+
+    data_postprocess = DataPostprocess(
+        data_path=args.review_path,
+        ablation=None,
+        threshold=args.threshold
+    )
+    data_postprocess()

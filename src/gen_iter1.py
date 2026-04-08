@@ -141,3 +141,10 @@ if __name__ == '__main__':
             seed=False
         )
     reviewer()
+
+    data_postprocess = DataPostprocess(
+        data_path=args.new_review_path,
+        ablation=None,
+        threshold=args.threshold
+    )
+    data_postprocess()

@@ -106,3 +106,11 @@ class DataPostprocess:
             json.dump(dpo_new_data, json_file, indent=4, ensure_ascii=False)
         with open(self.next_seed_path, 'w', encoding='utf-8') as json_file:
             json.dump(sft_new_data, json_file, indent=4, ensure_ascii=False)
+
+if __name__ == "__main__":
+    data_postprocess = DataPostprocess(
+        data_path="dataset/data_first/review/review_iter1.json",
+        ablation=None,
+        threshold=7.0
+    )
+    data_postprocess()
