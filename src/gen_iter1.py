@@ -45,6 +45,8 @@ def parse_args():
                         help='url for LLM config (required for api mode)')
     parser.add_argument('--modelname', type=str, default='qwen3.5-plus',
                         help='modelname for LLM config (required for api mode)')
+    parser.add_argument('--api_num_worker', type=int, default=4,
+                        help='api_num_worker for LLM config (required for api mode)')
 
     args = parser.parse_args()
     
